@@ -1,3 +1,11 @@
+# raft-leader-election
+
+Studying the Raft Consensus Algorithm, Leader Election
+
+# Build
+
+`go build main.go`
+
 # Observations
 
 1) A new term is started iff some node fails to receive a heartbeat from the leader or a leader fails to be elected;
