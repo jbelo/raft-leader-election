@@ -2,6 +2,8 @@
 
 Studying the Raft Consensus Algorithm, Leader Election
 
+An implement of the Leader Election component of Raft. The leader sporadically gives up to force new election.
+
 # Build
 
 `go build main.go`
@@ -11,24 +13,26 @@ Studying the Raft Consensus Algorithm, Leader Election
 1. A new term is started iff some node fails to receive a heartbeat from the leader or a leader fails to be elected;
 2. A node moves to a new term iff it receives a message from another node, necessarily a candidate or a leader, already in that term;
 3. A vote is granted to a node iff the node is in a higher term;
+
+Note that if there is a log to maintain, then:
+
 4. Entries are considered committed iff they are acknowledged by a majority (see example bellow about the possibility of two leaders);
 
-
-# Examples
+# Example of Pathological Cases
 
 ## Two leaders In Two Distinct Terms
 ## (But Only One Having a Majority of Followers)
 
 - Configuration:
   - A seven node cluster
-  - One leader in term n with two follower
+  - One leader in term n with two followers
   - Another leader in term n+k with three followers
   - Only the other leader forms a majority with its followers;
 - How:
   - The one leader was first granted four votes;
   - The other leader was then granted four votes, one of them from followers of the one leader;
 
-or,
+or simpler,
 
 - Configuration:
   - A three node cluster
