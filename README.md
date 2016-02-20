@@ -2,7 +2,7 @@
 
 Studying the Raft Consensus Algorithm, Leader Election
 
-An implement of the Leader Election component of Raft. The leader sporadically gives up to force new election.
+An implementation of the Leader Election component of Raft. The leader sporadically gives up to force new election.
 
 # Build
 
