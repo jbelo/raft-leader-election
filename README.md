@@ -8,15 +8,16 @@ Studying the Raft Consensus Algorithm, Leader Election
 
 # Observations
 
-1) A new term is started iff some node fails to receive a heartbeat from the leader or a leader fails to be elected;
-2) A node moves to a new term iff it receives a message from another node, necessarily a candidate or a leader, already in that term;
-3) A vote is granted to a node iff the node is in a higher term;
-4) Entries are considered committed iff they are acknowledged by a majority (see example bellow about the possibility of two leaders);
+1. A new term is started iff some node fails to receive a heartbeat from the leader or a leader fails to be elected;
+2. A node moves to a new term iff it receives a message from another node, necessarily a candidate or a leader, already in that term;
+3. A vote is granted to a node iff the node is in a higher term;
+4. Entries are considered committed iff they are acknowledged by a majority (see example bellow about the possibility of two leaders);
 
 
 # Examples
 
-## Two leaders In Two Distinct Terms (But Only One Having a Majority of Followers)
+## Two leaders In Two Distinct Terms
+## (But Only One Having a Majority of Followers)
 
 - Configuration:
   - A seven node cluster
