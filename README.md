@@ -1,6 +1,6 @@
 # raft-leader-election
 
-Studying the Raft Consensus Algorithm, Leader Election
+> Studying the Raft Consensus Algorithm, Leader Election
 
 An implementation of the Leader Election component of Raft. The leader sporadically gives up to force new election.
 
@@ -46,5 +46,5 @@ or simpler,
 # References
 
 - [The Raft Consensus Algorithm](https://raft.github.io/)
-- [Raft Paper](http://ramcloud.stanford.edu/raft.pdf)
+- [The Raft Paper](http://ramcloud.stanford.edu/raft.pdf)
 - [Diego Ongaro's Ph.D. Dissertation](https://github.com/ongardie/dissertation#readme)
