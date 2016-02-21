@@ -11,7 +11,7 @@ An implementation of the Leader Election component of Raft. The leader sporadica
 # Observations
 
 1. A new term is started iff some node fails to receive a heartbeat from the leader or a leader fails to be elected;
-2. A node moves to a new term iff it receives a message from another node, necessarily a candidate or a leader, already in that term;
+2. A node moves to a new term iff it becomes a candidate or receives a message from another node, necessarily a candidate or a leader, already in that term;
 3. A vote is granted to a node iff the node is in a higher term;
 
 Note that if there is a log to maintain, then:
