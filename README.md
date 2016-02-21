@@ -42,3 +42,9 @@ or simpler,
 - How:
   - The one leader was first granted one vote;
   - The other leader was then granted one vote, from the one leader follower;
+
+# References
+
+- [The Raft Consensus Algorithm](https://raft.github.io/)
+- [Raft Paper](http://ramcloud.stanford.edu/raft.pdf)
+- [Diego Ongaro's Ph.D. Dissertation](https://github.com/ongardie/dissertation#readme)
