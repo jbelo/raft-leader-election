@@ -1,10 +1,10 @@
 package main
 
 import (
-	"math/rand"
-	"time"
 	"log"
+	"math/rand"
 	"os"
+	"time"
 )
 
 const (
@@ -50,6 +50,15 @@ type GrantVoteRep struct {
 	term int
 }
 
+type PeerLogState struct {
+	nextIndex int
+}
+
+type LogEntry struct {
+	term  int
+	value int
+}
+
 type Node struct {
 	role    int
 	term    int
@@ -58,6 +67,9 @@ type Node struct {
 	peers   []chan interface{}
 	timeout <-chan time.Time
 	logger  *log.Logger
+
+	peerLogState [noOfPeers]PeerLogState
+	log          []LogEntry
 }
 
 func (n *Node) resetElectionTimer() {
@@ -66,6 +78,14 @@ func (n *Node) resetElectionTimer() {
 
 func (n *Node) resetHeartbeatTimer() {
 	n.timeout = time.After(time.Duration(heartbeatInMs) * time.Millisecond)
+}
+
+func (n *Node) setupPeerLogState() {
+	for peer, state := range n.peerLogState {
+		if peer != n.id {
+			state.nextIndex = n.peerLogState[n.id].nextIndex
+		}
+	}
 }
 
 func (n *Node) becomeFollower(term int) {
@@ -91,8 +111,7 @@ func (n *Node) becomeCandidate(term int) {
 	n.resetElectionTimer()
 }
 
-func (n *Node) becomeLeader() {
-	n.role = leader
+func (n *Node) heartbeat() {
 	for peer, ch := range n.peers {
 		if n.id != peer {
 			n.logger.Printf("%d "+emphLeader()+", heartbeating, sent to %d, term is %d\n", n.id, peer, n.term)
@@ -103,6 +122,12 @@ func (n *Node) becomeLeader() {
 		}
 	}
 	n.resetHeartbeatTimer()
+}
+
+func (n *Node) becomeLeader() {
+	n.role = leader
+	n.setupPeerLogState()
+	n.heartbeat()
 }
 
 func (n *Node) followerState() {
@@ -190,9 +215,9 @@ func (n *Node) leaderState() {
 		if rand.Intn(chanceOfGivingUp) == 0 {
 			n.logger.Printf("%d "+emphLeader()+", going to sleep for 2 secs..., term is %d\n", n.id, n.term)
 			time.Sleep(2 * time.Second)
-			n.becomeLeader()
+			n.heartbeat()
 		} else {
-			n.becomeLeader()
+			n.heartbeat()
 		}
 	case t := <-n.peers[n.id]:
 		switch t := t.(type) {
@@ -237,9 +262,9 @@ func main() {
 	logger.Printf("Starting up...")
 	channels := []chan interface{}{make(chan interface{}, 2), make(chan interface{}, 2), make(chan interface{}, 2)}
 	nodes := []Node{
-		Node{role: follower, term: 0, id: 0, peers: []chan interface{}{channels[0], channels[1], channels[2]}, logger: logger},
-		Node{role: follower, term: 0, id: 1, peers: []chan interface{}{channels[0], channels[1], channels[2]}, logger: logger},
-		Node{role: follower, term: 0, id: 2, peers: []chan interface{}{channels[0], channels[1], channels[2]}, logger: logger},
+		Node{role: follower, term: 0, id: 0, peers: []chan interface{}{channels[0], channels[1], channels[2]}, logger: logger, log: make([]LogEntry, 0)},
+		Node{role: follower, term: 0, id: 1, peers: []chan interface{}{channels[0], channels[1], channels[2]}, logger: logger, log: make([]LogEntry, 0)},
+		Node{role: follower, term: 0, id: 2, peers: []chan interface{}{channels[0], channels[1], channels[2]}, logger: logger, log: make([]LogEntry, 0)},
 	}
 	go nodes[0].run()
 	go nodes[1].run()
