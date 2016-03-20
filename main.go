@@ -38,6 +38,15 @@ func emphLeader() string {
 type AppendEntriesReq struct {
 	from int
 	term int
+
+	prevLogIndex int
+	prevLogTerm  int
+}
+
+type AppendEntriesRep struct {
+	from    int
+	term    int
+	success bool
 }
 
 type RequestVoteReq struct {
@@ -51,12 +60,29 @@ type GrantVoteRep struct {
 }
 
 type PeerLogState struct {
-	nextIndex int
+	nextIndex  int
+	matchIndex int
 }
 
 type LogEntry struct {
 	term  int
 	value int
+}
+
+type Log struct {
+	entries     []LogEntry
+	commitIndex int
+}
+
+func (l *Log) appendAcceptable(prevLogIndex int, prevLogTerm int) bool {
+	if 0 == prevLogIndex + 1 {
+		return true
+	}
+
+	if 0 < prevLogIndex + 1 && prevLogIndex + 1 <= len(l.entries) {
+		return l.entries[prevLogIndex].term == prevLogTerm
+	}
+	return false
 }
 
 type Node struct {
@@ -69,7 +95,18 @@ type Node struct {
 	logger  *log.Logger
 
 	peerLogState [noOfPeers]PeerLogState
-	log          []LogEntry
+	log          Log
+}
+
+func makeNode(id int, channels []chan interface{}, logger *log.Logger) Node {
+	return Node{
+		role:   follower,
+		term:   0,
+		id:     id,
+		peers:  []chan interface{}{channels[0], channels[1], channels[2]},
+		logger: logger,
+		log:    Log{make([]LogEntry, 0), 0},
+	}
 }
 
 func (n *Node) resetElectionTimer() {
@@ -81,11 +118,22 @@ func (n *Node) resetHeartbeatTimer() {
 }
 
 func (n *Node) setupPeerLogState() {
+	// generate a few entries
+	n.log.entries = append(n.log.entries, LogEntry{n.term, 3})
+	n.log.entries = append(n.log.entries, LogEntry{n.term, 1})
+	n.log.entries = append(n.log.entries, LogEntry{n.term, 4})
+	// Setup owns log state
+	n.peerLogState[n.id].nextIndex = len(n.log.entries)
 	for peer, state := range n.peerLogState {
 		if peer != n.id {
 			state.nextIndex = n.peerLogState[n.id].nextIndex
+			state.matchIndex = -1
 		}
 	}
+}
+
+func (n *Node) appendAcceptable(prevLogIndex int, prevLogTerm int) bool {
+	return n.log.appendAcceptable(prevLogTerm, prevLogTerm)
 }
 
 func (n *Node) becomeFollower(term int) {
@@ -114,9 +162,14 @@ func (n *Node) becomeCandidate(term int) {
 func (n *Node) heartbeat() {
 	for peer, ch := range n.peers {
 		if n.id != peer {
-			n.logger.Printf("%d "+emphLeader()+", heartbeating, sent to %d, term is %d\n", n.id, peer, n.term)
+			prevLogIndex := n.peerLogState[peer].nextIndex - 1
+			prevLogTerm := -1
+			if len(n.log.entries) != 0 {
+				prevLogTerm = n.log.entries[prevLogIndex].term
+			}
+			n.logger.Printf("%d "+emphLeader()+", heartbeating, sent to %d with prevLogIndex %d and prevLogTerm %d, term is %d\n", n.id, peer, prevLogIndex, prevLogTerm, n.term)
 			select {
-			case ch <- AppendEntriesReq{term: n.term, from: n.id}:
+			case ch <- AppendEntriesReq{term: n.term, from: n.id, prevLogIndex: prevLogIndex, prevLogTerm: prevLogTerm}:
 			default:
 			}
 		}
@@ -139,13 +192,13 @@ func (n *Node) followerState() {
 		switch t := t.(type) {
 		case AppendEntriesReq:
 			if n.term == t.term {
-				n.logger.Printf("%d "+emphFollower()+", append requested for term %d, from %d, term is %d\n", n.id, t.term, t.from, n.term)
+				n.logger.Printf("%d "+emphFollower()+", append requested for term %d, from %d with prevLogIndex %d and prevLogTerm %d, term is %d\n", n.id, t.term, t.from, t.prevLogIndex, t.prevLogTerm, n.term)
 				n.resetElectionTimer()
 			} else if n.term < t.term {
-				n.logger.Printf("%d "+emphFollower()+", append requested for term %d, new term, from %d, term is %d\n", n.id, n.term, t.from, n.term)
+				n.logger.Printf("%d "+emphFollower()+", append requested for term %d, new term, from %d with prevLogIndex %d and prevLogTerm %d, term is %d\n", n.id, n.term, t.from, t.prevLogIndex, t.prevLogTerm, n.term)
 				n.becomeFollower(t.term)
 			} else {
-				n.logger.Printf("%d "+emphFollower()+", append requested for term %d, ignoring, from %d, term is %d\n", n.id, t.term, t.from, n.term)
+				n.logger.Printf("%d "+emphFollower()+", append requested for term %d, ignoring, from %d with prevLogIndex %d and prevLogTerm %d, term is %d\n", n.id, t.term, t.from, n.term)
 			}
 		case RequestVoteReq:
 			if n.term < t.term {
@@ -261,11 +314,7 @@ func main() {
 	logger := log.New(os.Stdout, "", log.Lmicroseconds|log.Lshortfile)
 	logger.Printf("Starting up...")
 	channels := []chan interface{}{make(chan interface{}, 2), make(chan interface{}, 2), make(chan interface{}, 2)}
-	nodes := []Node{
-		Node{role: follower, term: 0, id: 0, peers: []chan interface{}{channels[0], channels[1], channels[2]}, logger: logger, log: make([]LogEntry, 0)},
-		Node{role: follower, term: 0, id: 1, peers: []chan interface{}{channels[0], channels[1], channels[2]}, logger: logger, log: make([]LogEntry, 0)},
-		Node{role: follower, term: 0, id: 2, peers: []chan interface{}{channels[0], channels[1], channels[2]}, logger: logger, log: make([]LogEntry, 0)},
-	}
+	nodes := [3]Node{makeNode(0, channels, logger), makeNode(1, channels, logger), makeNode(2, channels, logger)}
 	go nodes[0].run()
 	go nodes[1].run()
 	go nodes[2].run()
