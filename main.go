@@ -36,8 +36,9 @@ func emphLeader() string {
 }
 
 type AppendEntriesReq struct {
-	from int
-	term int
+	from  int
+	term  int
+	value int
 
 	prevLogIndex int
 	prevLogTerm  int
@@ -74,26 +75,39 @@ type Log struct {
 	commitIndex int
 }
 
-func (l *Log) appendAcceptable(prevLogIndex int, prevLogTerm int) bool {
-	if 0 == prevLogIndex + 1 {
+func (log *Log) appendAcceptable(prevLogIndex int, prevLogTerm int) bool {
+	if 0 == prevLogIndex+1 {
 		return true
 	}
 
-	if 0 < prevLogIndex + 1 && prevLogIndex + 1 <= len(l.entries) {
-		return l.entries[prevLogIndex].term == prevLogTerm
+	if 0 < prevLogIndex+1 && prevLogIndex+1 <= len(log.entries) {
+		return log.entries[prevLogIndex].term == prevLogTerm
 	}
+
 	return false
 }
 
-type Node struct {
-	role    int
-	term    int
-	id      int
-	votes   int
-	peers   []chan interface{}
-	timeout <-chan time.Time
-	logger  *log.Logger
+func (log *Log) appendEntry(prevLogIndex int, prevLogTerm int, logEntry LogEntry) bool {
+	if !log.appendAcceptable(prevLogIndex, prevLogTerm) {
+		return false
+	}
+	if prevLogIndex+1 == len(log.entries) {
+		log.entries = append(log.entries, logEntry)
+	} else {
+		log.entries[prevLogIndex+1] = logEntry
+		log.entries = log.entries[0 : prevLogIndex+1]
+	}
+	return true
+}
 
+type Node struct {
+	role         int
+	term         int
+	id           int
+	votes        int
+	peers        []chan interface{}
+	timeout      <-chan time.Time
+	logger       *log.Logger
 	peerLogState [noOfPeers]PeerLogState
 	log          Log
 }
@@ -124,12 +138,21 @@ func (n *Node) setupPeerLogState() {
 	n.log.entries = append(n.log.entries, LogEntry{n.term, 4})
 	// Setup owns log state
 	n.peerLogState[n.id].nextIndex = len(n.log.entries)
-	for peer, state := range n.peerLogState {
+	for peer := range n.peerLogState {
 		if peer != n.id {
-			state.nextIndex = n.peerLogState[n.id].nextIndex
-			state.matchIndex = -1
+			n.peerLogState[peer].nextIndex = n.peerLogState[n.id].nextIndex
+			n.peerLogState[peer].matchIndex = -1
 		}
 	}
+}
+
+func (n *Node) peerCurrentLogState(peer int) (int, int) {
+	prevLogIndex := n.peerLogState[peer].nextIndex - 1
+	prevLogTerm := -1
+	if len(n.log.entries) != 0 {
+		prevLogTerm = n.log.entries[prevLogIndex].term
+	}
+	return prevLogIndex, prevLogTerm
 }
 
 func (n *Node) appendAcceptable(prevLogIndex int, prevLogTerm int) bool {
@@ -162,11 +185,7 @@ func (n *Node) becomeCandidate(term int) {
 func (n *Node) heartbeat() {
 	for peer, ch := range n.peers {
 		if n.id != peer {
-			prevLogIndex := n.peerLogState[peer].nextIndex - 1
-			prevLogTerm := -1
-			if len(n.log.entries) != 0 {
-				prevLogTerm = n.log.entries[prevLogIndex].term
-			}
+			prevLogIndex, prevLogTerm := n.peerCurrentLogState(peer)
 			n.logger.Printf("%d "+emphLeader()+", heartbeating, sent to %d with prevLogIndex %d and prevLogTerm %d, term is %d\n", n.id, peer, prevLogIndex, prevLogTerm, n.term)
 			select {
 			case ch <- AppendEntriesReq{term: n.term, from: n.id, prevLogIndex: prevLogIndex, prevLogTerm: prevLogTerm}:
@@ -191,8 +210,10 @@ func (n *Node) followerState() {
 	case t := <-n.peers[n.id]:
 		switch t := t.(type) {
 		case AppendEntriesReq:
+			success := n.log.appendEntry(t.prevLogIndex, t.prevLogTerm, LogEntry{term: t.term, value: 3})
+			n.peers[t.from] <- AppendEntriesRep{from: n.id, term: n.term, success: success}
 			if n.term == t.term {
-				n.logger.Printf("%d "+emphFollower()+", append requested for term %d, from %d with prevLogIndex %d and prevLogTerm %d, term is %d\n", n.id, t.term, t.from, t.prevLogIndex, t.prevLogTerm, n.term)
+				n.logger.Printf("%d "+emphFollower()+", append requested for term %d, from %d with prevLogIndex %d and prevLogTerm %d, term is %d\nlog is %v\n", n.id, t.term, t.from, t.prevLogIndex, t.prevLogTerm, n.term, n.log)
 				n.resetElectionTimer()
 			} else if n.term < t.term {
 				n.logger.Printf("%d "+emphFollower()+", append requested for term %d, new term, from %d with prevLogIndex %d and prevLogTerm %d, term is %d\n", n.id, n.term, t.from, t.prevLogIndex, t.prevLogTerm, n.term)
@@ -281,6 +302,14 @@ func (n *Node) leaderState() {
 				n.becomeFollower(n.term)
 			} else {
 				n.logger.Printf("%d "+emphLeader()+", append requested for term %d, ignoring, from %d, term is %d\n", n.id, t.term, t.from, n.term)
+			}
+		case AppendEntriesRep: //TODO
+			if t.success {
+				n.peerLogState[t.from].matchIndex = n.peerLogState[t.from].nextIndex
+				n.peerLogState[t.from].nextIndex = n.peerLogState[t.from].nextIndex + 1
+			} else if n.peerLogState[t.from].matchIndex < n.peerLogState[t.from].nextIndex
+
+				n.peerLogState[t.from].nextIndex = n.peerLogState[t.from].nextIndex + 1
 			}
 		case RequestVoteReq:
 			if n.term < t.term {
