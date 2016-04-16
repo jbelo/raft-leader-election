@@ -1,31 +1,33 @@
 package main
 
 import (
-	"time"
 	"log"
 	"math/rand"
+	"time"
 )
 
 type Node struct {
 	term     int
 	id       int
 	votes    int
-	peers    []chan interface{}
+	peers    [noOfPeers]chan interface{}
 	own      chan interface{}
 	timeout  <-chan time.Time
 	logger   *log.Logger
+	log      *Log
 	peerLogs [noOfPeers]PeerLog
-	log      Log
 }
 
 func makeNode(id int, channels []chan interface{}, logger *log.Logger) Node {
+	log := makeLog(logger)
 	return Node{
-		term:   0,
-		id:     id,
-		peers:  []chan interface{}{channels[0], channels[1], channels[2]},
-		own:	channels[id],
-		logger: logger,
-		log:    Log{make([]LogEntry, 0), 0},
+		term:     0,
+		id:       id,
+		peers:    [noOfPeers]chan interface{}{channels[0], channels[1], channels[2]},
+		own:      channels[id],
+		logger:   logger,
+		log:      &log,
+		peerLogs: [noOfPeers]PeerLog{makePeerLog(&log), makePeerLog(&log), makePeerLog(&log)},
 	}
 }
 
@@ -43,23 +45,23 @@ func (n *Node) resetHeartbeatTimer() {
 
 func (n *Node) resetPeerLogs() {
 	// generate a few entries
-	n.log.entries = append(n.log.entries, LogEntry{n.term, 3})
-	n.log.entries = append(n.log.entries, LogEntry{n.term, 1})
-	n.log.entries = append(n.log.entries, LogEntry{n.term, 4})
+	n.log.appendNewEntry(LogEntry{n.term, 3})
+	n.log.appendNewEntry(LogEntry{n.term, 1})
+	n.log.appendNewEntry(LogEntry{n.term, 4})
 	// Setup own log state
 	for peer := range n.peerLogs {
 		if peer != n.id {
-			n.peerLogs[peer].reset(n.log.noOfEntries())
+			n.peerLogs[peer].reset()
 		}
 	}
 }
 
 func (n *Node) peerLogState(peer int) (int, int) {
 	prevLogIndex := n.peerLogs[peer].nextIndex - 1
-	if n.log.isEmpty() {
-		return prevLogIndex, -1
+	if prevLogIndex == -1 {
+		return prevLogIndex, NULLTERM
 	}
-	return prevLogIndex, n.log.entries[prevLogIndex].term
+	return prevLogIndex, n.log.fetchTerm(prevLogIndex)
 }
 
 func (n *Node) appendAcceptable(prevLogIndex int, prevLogTerm int) bool {
@@ -92,8 +94,12 @@ func (n *Node) sendHeartbeats() {
 		if n.id != peer {
 			prevLogIndex, prevLogTerm := n.peerLogState(peer)
 			n.logger.Printf("%d "+emphLeader()+", heartbeating, sent to %d with prevLogIndex %d and prevLogTerm %d, term is %d\n", n.id, peer, prevLogIndex, prevLogTerm, n.term)
+			value := NULLVALUE
+			if n.log.hasEntryAt(prevLogIndex+1) {
+				value = n.log.fetchValue(prevLogIndex+1)
+			}
 			select {
-			case ch <- AppendEntriesReq{term: n.term, from: n.id, prevLogIndex: prevLogIndex, prevLogTerm: prevLogTerm}:
+			case ch <- AppendEntriesReq{term: n.term, from: n.id, prevLogIndex: prevLogIndex, prevLogTerm: prevLogTerm, value: value}:
 			default:
 			}
 		}
@@ -105,7 +111,6 @@ func (n *Node) becomeLeader() {
 	n.resetPeerLogs()
 	n.sendHeartbeats()
 }
-
 
 func (n *Node) Run() {
 	n.becomeFollower(0)

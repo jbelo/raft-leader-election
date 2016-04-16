@@ -1,18 +1,27 @@
 package main
 
 type PeerLog struct {
-	nextIndex  int
-	matchIndex int
+	log 	   *Log
+	nextIndex  int		// 0 <= nextIndex <= log.noOfEntries()
+	matchIndex int		// -1 <= matchIndex < nextIndex
 }
 
-func (ls *PeerLog) reset(nextIndex int) {
-	ls.nextIndex = nextIndex
+func makePeerLog(log *Log) PeerLog {
+	return PeerLog{log: log}
+}
+
+func (ls *PeerLog) reset() {
+	ls.nextIndex = ls.log.noOfEntries()
 	ls.matchIndex = -1
 }
 
 func (ls *PeerLog) ack() {
-	ls.matchIndex = ls.nextIndex
-	ls.nextIndex++
+	if ls.nextIndex < ls.log.noOfEntries() {
+		ls.matchIndex = ls.nextIndex
+		ls.nextIndex++
+	} else {
+		ls.matchIndex = ls.nextIndex - 1
+	}
 }
 
 func (ls *PeerLog) nack() {
@@ -20,7 +29,4 @@ func (ls *PeerLog) nack() {
 		return
 	}
 	ls.nextIndex--
-	if ls.matchIndex == ls.nextIndex {
-		ls.matchIndex--
-	}
 }

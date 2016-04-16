@@ -1,44 +1,79 @@
 package main
 
+import "log"
+
 type LogEntry struct {
 	term  int
 	value int
 }
 
 type Log struct {
+	logger      *log.Logger
 	entries     []LogEntry
 	commitIndex int
 }
 
+func makeLog(logger *log.Logger) Log {
+	return Log{logger: logger, entries: make([]LogEntry, 0), commitIndex: 0}
+}
+
 func (log *Log) appendAcceptable(prevLogIndex int, prevLogTerm int) bool {
-	if 0 == prevLogIndex+1 {
+	atIndex := prevLogIndex+1
+	if atIndex == 0 {
 		return true
 	}
 
-	if 0 < prevLogIndex+1 && prevLogIndex+1 <= len(log.entries) {
+	if 0 < atIndex && atIndex <= len(log.entries) {
 		return log.entries[prevLogIndex].term == prevLogTerm
 	}
 
 	return false
 }
 
-func (log *Log) AppendEntry(prevLogIndex int, prevLogTerm int, logEntry LogEntry) bool {
-	if !log.appendAcceptable(prevLogIndex, prevLogTerm) {
+func (log *Log) appendNotAcceptable(prevLogIndex int, prevLogTerm int) bool {
+	return !log.appendAcceptable(prevLogIndex, prevLogTerm)
+}
+
+func (log *Log) appendEntry(prevLogIndex int, prevLogTerm int, term int, value int) bool {
+	if log.appendNotAcceptable(prevLogIndex, prevLogTerm) {
 		return false
 	}
-	if prevLogIndex+1 == len(log.entries) {
-		log.entries = append(log.entries, logEntry)
-	} else {
-		log.entries[prevLogIndex+1] = logEntry
-		log.entries = log.entries[0 : prevLogIndex+1]
+
+	if value == NULLVALUE {
+		return true
 	}
+
+	log.entries = append(log.entries[0 : prevLogIndex+1], LogEntry{term: term, value: value})
+
 	return true
 }
 
-func (log *Log) noOfEntries() {
+func (log *Log) appendNewEntry(LogEntry LogEntry) {
+	log.entries = append(log.entries, LogEntry)
+}
+
+func (log *Log) fetchTerm(index int) int {
+	if index < 0 || len(log.entries) <= index {
+		log.logger.Printf("Invalid fetch term index specified %d (%d)\n", index, len(log.entries))
+	}
+	return log.entries[index].term
+}
+
+func (log *Log) fetchValue(index int) int {
+	if index < 0 || len(log.entries) <= index {
+		log.logger.Printf("Invalid fetch value index specified %d (%d)\n", index, len(log.entries))
+	}
+	return log.entries[index].value
+}
+
+func (log *Log) hasEntryAt(index int) bool {
+	return index < len(log.entries)
+}
+
+func (log *Log) noOfEntries() int {
 	return len(log.entries)
 }
 
-func (log *Log) isEmpty() {
+func (log *Log) isEmpty() bool {
 	return len(log.entries) == 0
 }

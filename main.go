@@ -2,15 +2,8 @@ package main
 
 import (
 	"log"
-	"math/rand"
 	"os"
 	"time"
-)
-
-const (
-	follower = iota
-	candidate
-	leader
 )
 
 const (
@@ -21,6 +14,11 @@ const (
 const (
 	timeoutInMs   = 1000
 	heartbeatInMs = 150
+)
+
+const (
+	NULLTERM  = -1
+	NULLVALUE = -1
 )
 
 func emphFollower() string {
@@ -70,6 +68,6 @@ func main() {
 	go nodes[0].Run()
 	go nodes[1].Run()
 	go nodes[2].Run()
-	time.Sleep(60 * time.Second)
+	time.Sleep(600 * time.Second)
 	logger.Printf("Finished")
 }
