@@ -6,7 +6,7 @@ An implementation of the Leader Election component of Raft. The leader sporadica
 
 # Build
 
-`go build main.go`
+`go build`
 
 # Observations
 
