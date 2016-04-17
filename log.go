@@ -70,10 +70,37 @@ func (log *Log) hasEntryAt(index int) bool {
 	return index < len(log.entries)
 }
 
+func (log *Log) lastIndex() int {
+	return len(log.entries) - 1
+}
+
+func (log *Log) lastTerm() int {
+	if log.isEmpty() {
+		return NULLTERM
+	}
+	return log.entries[log.lastIndex()].term
+}
+
 func (log *Log) noOfEntries() int {
 	return len(log.entries)
 }
 
 func (log *Log) isEmpty() bool {
 	return len(log.entries) == 0
+}
+
+func (log *Log) moreRecentThan(lastLogIndex int, lastLogTerm int) bool {
+	if log.isEmpty() && lastLogIndex == -1 {
+		return false
+	}
+	if lastLogIndex == -1 {
+		return true
+	}
+	if log.lastTerm() > lastLogTerm  {
+		return true
+	}
+	if log.lastTerm() < lastLogTerm {
+		return false
+	}
+	return log.lastIndex() > lastLogIndex
 }

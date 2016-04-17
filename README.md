@@ -8,6 +8,10 @@ An implementation of the Leader Election component of Raft. The leader sporadica
 
 `go build`
 
+# Run
+
+`./raft`
+
 # Observations
 
 1. A new term is started iff some node fails to receive a heartbeat from the leader or a leader fails to be elected;

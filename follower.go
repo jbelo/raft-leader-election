@@ -26,11 +26,17 @@ func handleAppendEntriesReq(n *Node, t AppendEntriesReq) StateFn {
 func handleRequestVoteReq(n *Node, t RequestVoteReq) StateFn {
 	if t.term <= n.term {
 		n.logger.Printf("%d " + emphFollower() + ", vote requested for term %d, from %d, ignoring, term is %d\n", n.id, t.term, t.from, n.term)
-	} else {
-		n.logger.Printf("%d " + emphFollower() + ", vote requested for term %d, from %d, term is %d\n", n.id, t.term, t.from, n.term)
-		n.term = t.term
-		n.replyPeer(t.from, GrantVoteRep{from: n.id, term: t.term})
+		return followerState
 	}
+
+	if n.log.moreRecentThan(t.lastLogIndex, t.lastLogTerm) {
+		n.logger.Printf("%d " + emphFollower() + ", vote requested for term %d, from %d, ignoring, candidate log is not recent, term is %d\n", n.id, t.term, t.from, n.term)
+		return followerState
+	}
+
+	n.logger.Printf("%d " + emphFollower() + ", vote requested for term %d, from %d, term is %d\n", n.id, t.term, t.from, n.term)
+	n.term = t.term
+	n.replyPeer(t.from, GrantVoteRep{from: n.id, term: t.term})
 	return followerState
 }
 

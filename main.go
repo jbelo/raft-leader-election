@@ -49,8 +49,10 @@ type AppendEntriesRep struct {
 }
 
 type RequestVoteReq struct {
-	from int
-	term int
+	from         int
+	term         int
+	lastLogIndex int
+	lastLogTerm  int
 }
 
 type GrantVoteRep struct {
