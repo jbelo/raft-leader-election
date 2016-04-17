@@ -14,7 +14,7 @@ type Log struct {
 }
 
 func makeLog(logger *log.Logger) Log {
-	return Log{logger: logger, entries: make([]LogEntry, 0), commitIndex: 0}
+	return Log{logger: logger, entries: make([]LogEntry, 0), commitIndex: -1}
 }
 
 func (log *Log) appendAcceptable(prevLogIndex int, prevLogTerm int) bool {

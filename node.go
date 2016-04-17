@@ -56,6 +56,27 @@ func (n *Node) resetPeerLogs() {
 	}
 }
 
+func (n *Node) updateCommitIndex(from int) {
+	matchIndex := n.peerLogs[from].matchIndex
+	if matchIndex <= n.log.commitIndex {
+		return
+	}
+	if n.log.fetchValue(matchIndex) < n.term {
+		return
+	}
+
+	count := 1
+	for peer, peerLog := range n.peerLogs {
+		if n.id != peer && matchIndex <= peerLog.matchIndex {
+			count++
+			if (noOfPeers + 1) / 2 == count {
+				n.log.commitIndex = peerLog.matchIndex
+				return
+			}
+		}
+	}
+}
+
 func (n *Node) peerLogState(peer int) (int, int) {
 	prevLogIndex := n.peerLogs[peer].nextIndex - 1
 	if prevLogIndex == -1 {
@@ -95,8 +116,8 @@ func (n *Node) sendHeartbeats() {
 			prevLogIndex, prevLogTerm := n.peerLogState(peer)
 			n.logger.Printf("%d "+emphLeader()+", heartbeating, sent to %d with prevLogIndex %d and prevLogTerm %d, term is %d\n", n.id, peer, prevLogIndex, prevLogTerm, n.term)
 			value := NULLVALUE
-			if n.log.hasEntryAt(prevLogIndex+1) {
-				value = n.log.fetchValue(prevLogIndex+1)
+			if n.log.hasEntryAt(prevLogIndex + 1) {
+				value = n.log.fetchValue(prevLogIndex + 1)
 			}
 			select {
 			case ch <- AppendEntriesReq{term: n.term, from: n.id, prevLogIndex: prevLogIndex, prevLogTerm: prevLogTerm, value: value}:

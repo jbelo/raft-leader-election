@@ -43,8 +43,9 @@ func leaderState(n *Node) StateFn {
 			}
 
 			if t.success {
-				n.logger.Printf("%d "+emphLeader()+", append success replied from %d, term is %d\n", n.id, t.from, n.term)
+				n.logger.Printf("%d "+emphLeader()+", append success replied from %d, commitIndex is %d, term is %d\n", n.id, t.from, n.log.commitIndex, n.term)
 				n.peerLogs[t.from].ack()
+				n.updateCommitIndex(t.from)
 			} else {
 				n.logger.Printf("%d "+emphLeader()+", append failure replied from %d, term is %d\n", n.id, t.from, n.term)
 				n.peerLogs[t.from].nack()
